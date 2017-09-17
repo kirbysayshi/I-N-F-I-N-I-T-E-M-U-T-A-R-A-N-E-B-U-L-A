@@ -1,7 +1,19 @@
+var applyStyle = (el, props) => {
+  Object.keys(props).forEach(name => {
+    el.style[name] = props[name];
+  });
+  return el;
+}
 
 var o_o = (name, props={}, children=[]) => {
   var el = document.createElement(name);
-  Object.keys(props).forEach(name => el[name] = props[name]);
+  Object.keys(props).forEach(name => {
+    if (name === 'style') {
+      applyStyle(el, props[name]);
+    } else {
+      el[name] = props[name];
+    }
+  });
   children.forEach(child => {
     if (child instanceof Element) el.appendChild(child);
     else {
@@ -12,7 +24,6 @@ var o_o = (name, props={}, children=[]) => {
   })
   return el;
 }
-
 
 var Boot = () => {
 
@@ -62,108 +73,111 @@ class App {
   constructor (clips) {
     this.state = {
       clips,
-      playing: false,
-      currentClip: null,
-      currentTransition: null,
-      transitioning: false,
+      scheduled: null,
       controls: {
-        playBtn: null,
       },
       root: null,
     }
   }
 
-  togglePlay () {
-    if (this.state.playing) {
-      clearTimeout(this.state.currentTransition);
-      this.state.currentClip.video.pause();
-      this.state.controls.playBtn.textContent = 'PLAY';
-    } else {
-      this.playNext();
-      this.state.controls.playBtn.textContent = 'PAUSE';
-    }
-
-    this.state.playing = !this.state.playing;
-  }
-
-  didMount (root) {
+  mount (root) {
     this.state.root = root;
-    var playBtn = o_o('button', { onclick: () => this.togglePlay() }, ['PAUSE'])
-    this.state.root.appendChild(playBtn);
-    this.state.controls.playBtn = playBtn;
-    this.playNext();
+
+    applyStyle(this.state.root, {
+      position: 'relative',
+      height: '100vh',
+      overflow: 'hidden',
+    });
+
+    var clipsDiv = o_o('div', {
+      className: 'clips', // just for debugging
+      style: {
+        position: 'absolute',
+        left: '0px',
+        top: '0px',
+        width: '100%',
+        height: '100%',
+      },
+    }, [
+      ...this.state.clips.map(clip => {
+        return applyStyle(clip.video, {
+          position: 'absolute',
+          top: '-999999px',
+          right: '-999999px',
+          bottom: '-999999px',
+          left: '-999999px',
+          minHeight: '100%',
+          minWidth: '100%',
+          margin: 'auto',
+        })
+      })
+    ]);
+
+    this.state.root.appendChild(clipsDiv);
+    var active = this.chooseNext();
+    this.bringToFront(active);
+    this.play();
   }
 
-  playNext () {
-    if (this.state.transitioning) return;
-    this.state.transitioning = true;
-    this.state.playing = true;
-
-    var padTime = 500;
-    var curr = this.state.currentClip;
-    var next = this.state.clips[Math.floor(Math.random() * this.state.clips.length)];
-
-    clearTimeout(this.state.currentTransition);
-    next.video.currentTime = next.startTime;
-    next.video.play();
-
-    setTimeout(() => {
-      if (curr && curr.video.parentNode) {
-        this.state.root.insertBefore(next.video, curr.video);
-        this.state.root.removeChild(curr.video);
-        setTimeout(() => curr.video.pause(), 100);
-      } else {
-        this.state.root.appendChild(next.video);
-      }
-
-      this.state.currentClip = next;
-      this.state.transitioning = false;
-
-      this.state.currentTransition = setTimeout(() => {
-        this.playNext();
-      }, (next.endTime * 1000) - (padTime * 2));
-    }, padTime)
+  chooseNext () {
+    var { clips } = this.state;
+    return clips[Math.floor(Math.random() * clips.length)];
   }
+
+  bringToFront (clip) {
+    var { clips } = this.state;
+    clips.forEach((clip, i) => applyStyle(clip.video, {
+      zIndex: i
+    }));
+    applyStyle(clip.video, { zIndex: clips.length });
+  }
+
+  getActive () {
+    var { clips } = this.state;
+    return clips.sort((a, b) => b.video.style.zIndex - a.video.style.zIndex)[0];
+  }
+
+  scheduleNext () {
+    if (this.state.scheduled) clearInterval(this.state.scheduled);
+    var curr = this.getActive();
+    var endTime = Math.max(curr.endTime - curr.video.currentTime, 0);
+    console.log('schedule end at', endTime, curr)
+    this.state.scheduled = setTimeout(() => {
+      this.state.scheduled = null;
+      curr.video.currentTime = curr.startTime;
+      var next = this.chooseNext();
+      next.video.play();
+      this.bringToFront(next);
+      console.log('switch', next);
+      this.scheduleNext();
+    }, endTime * 1000);
+  }
+
+  pause () {
+    if (this.state.scheduled) clearTimeout(this.state.scheduled);
+    //this.state.controls.playBtn.textContent = 'PLAY';
+    return this.getActive().video.pause();
+  }
+
+  play () {
+    //this.state.controls.playBtn.textContent = 'PAUSE';
+    this.scheduleNext();
+    return this.getActive().video.play();
+  }
+
+  togglePlay () {
+    var { video } = this.getActive();
+    if (video.paused) {
+      this.play();
+    } else {
+      this.pause();
+    }
+  }
+
 }
 
 Boot().then(clips => {
   var app = new App(clips);
-  app.didMount(document.querySelector('#stage'));
+  app.mount(document.querySelector('#stage'));
 });
 
-
-
-//var urls = videoSources.map(url => new Promise((resolve, reject) => {
-//  downloadData(url, buffer => resolve(window.URL.createObjectURL(new Blob([buffer], { type: "video/mp4" }))));
-//}))
-//
-//urls.forEach(url => {
-//  url.then(url => {
-//    console.log(url);
-//    var v = document.createElement('video');
-//    var stage = document.querySelector('#stage');
-//    v.src = url;
-//    stage.appendChild(v);
-//  })
-//});
-//
-//Promise.all(urls).then(() => {
-//  return;
-//  (function shuffle() {
-//
-//    var videos = Array.from(document.querySelectorAll('#stage video'));
-//    var idx = Math.floor(Math.random() * videos.length);
-//    var video = videos[idx];
-//
-//    videos.forEach((v, i) => {
-//      v.style.zIndex = i;
-//      v.pause();
-//      v.currentTime = 0;
-//    });
-//
-//    video.play();
-//    video.style.zIndex = videos.length;
-//
-//    setTimeout(shuffle, 10000);
-//  }())
-//})
