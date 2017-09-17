@@ -104,6 +104,7 @@ class App {
       clips,
       scheduled: null,
       controls: {},
+      controlsOpen: false,
       root: null,
       options: {
         random2sec: false,
@@ -114,6 +115,8 @@ class App {
 
   mount (root) {
     this.state.root = root;
+
+    var font = '9px/12px Arial, sans-serif';
 
     applyStyle(this.state.root, {
       position: 'relative',
@@ -154,46 +157,65 @@ class App {
         left: '20px',
         top: '20px',
         padding: '10px',
-        opacity: '0.7',
+        opacity: '0.4',
         zIndex: this.state.clips.length + 1,
         backgroundColor: 'black',
         color: 'white',
-        fontFamily: 'Helvetica, Arial, sans-serif'
+        font,
       }
     }, [
       o_o('button', {
-        className: 'play-btn',
-        ref: el => { this.state.controls.playBtn = el },
-        onclick: () => this.togglePlay(),
-        style: {
-          width: '75px',
-        }
-      }),
-      o_o('label', {
-        className: 'random-2-sec',
+        style: { font },
+        onclick: () => {
+          this.state.controlsOpen = !this.state.controlsOpen;
+          this.toggleControls()
+        },
+      }, ['CONTROLS']),
+      o_o('div', {
+        className: 'controls-collapser',
+        ref: (el) => { this.state.controls.collapser = el; }
       }, [
-        o_o('input', {
-          type: 'checkbox',
-          onchange: ({ target: { checked } }) => {
-            this.state.options.random2sec = !!checked;
-            this.scheduleNext();
-          },
+        o_o('hr'),
+        o_o('button', {
+          className: 'play-btn',
+          ref: el => { this.state.controls.playBtn = el },
+          onclick: () => this.togglePlay(),
+          style: {
+            font,
+            width: '75px',
+          }
         }),
-        'RANDOM 2 SECONDS'
+        o_o('label', {
+          className: 'random-2-sec',
+          style: { display: 'block', }
+        }, [
+          o_o('input', {
+            type: 'checkbox',
+            onchange: ({ target: { checked } }) => {
+              this.state.options.random2sec = !!checked;
+              this.scheduleNext();
+            },
+          }),
+          'RANDOM 2 SECONDS'
+        ]),
+        o_o('label', {
+          className: 'sound',
+          style: { display: 'block', }
+        }, [
+          o_o('input', {
+            type: 'checkbox',
+            checked: this.state.options.sound,
+            onchange: ({ target: { checked } }) => {
+              this.state.options.sound = !!checked;
+              this.toggleSound();
+            },
+          }),
+          'SOUND'
+        ]),
+        o_o('p', {}, [
+          `TODO: copyright / fair use`
+        ])
       ]),
-      o_o('label', {
-        className: 'sound',
-      }, [
-        o_o('input', {
-          type: 'checkbox',
-          checked: this.state.options.sound,
-          onchange: ({ target: { checked } }) => {
-            this.state.options.sound = !!checked;
-            this.toggleSound();
-          },
-        }),
-        'SOUND'
-      ])
     ]);
 
     this.state.root.appendChild(controlsDiv);
@@ -201,6 +223,7 @@ class App {
     var active = this.chooseNext();
     this.bringToFront(active);
     this.toggleSound();
+    this.toggleControls();
     this.play();
   }
 
@@ -279,6 +302,13 @@ class App {
     clips.forEach(({ video }) => {
       video.volume = sound ? 1 : 0;
     });
+  }
+
+  toggleControls () {
+    var { controlsOpen, controls: { collapser: cc } } = this.state;
+    cc.style.display = controlsOpen
+      ? 'block'
+      : 'none'
   }
 }
 
