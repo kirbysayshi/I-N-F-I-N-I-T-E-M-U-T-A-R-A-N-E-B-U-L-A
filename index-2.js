@@ -1,3 +1,9 @@
+var debug = (prefix) => localStorage[prefix]
+  ? (fmt, ...params) => {
+    console.log(prefix + ': ' + fmt, ...params);
+  }
+  : () => {};
+
 var applyStyle = (el, props) => {
   Object.keys(props).forEach(name => {
     el.style[name] = props[name];
@@ -89,6 +95,7 @@ var Boot = () => {
   return Promise.all(clips);
 };
 
+var dbg = debug('mutara');
 
 class App {
 
@@ -167,8 +174,8 @@ class App {
       }, [
         o_o('input', {
           type: 'checkbox',
-          onchange: ({ target: { value } }) => {
-            this.state.options.random2sec = value === 'on';
+          onchange: ({ target: { checked } }) => {
+            this.state.options.random2sec = !!checked;
             this.scheduleNext();
           },
         }),
@@ -180,8 +187,8 @@ class App {
         o_o('input', {
           type: 'checkbox',
           checked: this.state.options.sound,
-          onchange: ({ target: { value } }) => {
-            this.state.options.sound = value === 'on';
+          onchange: ({ target: { checked } }) => {
+            this.state.options.sound = !!checked;
             this.toggleSound();
           },
         }),
@@ -221,18 +228,19 @@ class App {
     var curr = this.getActive();
     var endTime = Math.max(curr.endTime - curr.video.currentTime, 0);
     if (options.random2sec) {
-      console.log('original', endTime);
+      var orig = endTime;
       endTime = Math.min(2, curr.video.duration - curr.video.currentTime);
-      console.log('FULL RANDOM', endTime);
+      dbg('random2sec: endTime orig %fs new %fs', orig, endTime);
     }
-    console.log('schedule end at', endTime, curr)
+    dbg('schedule will fire: %fs', endTime);
     this.state.scheduled = setTimeout(() => {
+      dbg('schedule fired after %fs', endTime);
       this.state.scheduled = null;
       var startTime = curr.startTime;
       if (options.random2sec) {
         curr.video.currentTime = Math.max(curr.startTime
           + (curr.video.duration - curr.startTime) * Math.random(), 2);
-        console.log('random start time will be', curr.video.currentTime);
+        dbg('random2sec: seek %fs', curr.video.currentTime);
       } else {
         curr.video.startTime = curr.startTime;
       }
@@ -240,7 +248,6 @@ class App {
       var next = this.chooseNext();
       next.video.play();
       this.bringToFront(next);
-      console.log('switch', next);
       this.scheduleNext();
     }, endTime * 1000);
   }
