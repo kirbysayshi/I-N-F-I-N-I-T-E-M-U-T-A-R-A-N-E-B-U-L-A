@@ -7,11 +7,32 @@ var applyStyle = (el, props) => {
 
 var o_o = (name, props={}, children=[]) => {
   var el = document.createElement(name);
+  var ref;
   Object.keys(props).forEach(name => {
+    // Ref callbacks to ease... getting a ref
+    if (name == 'ref' && typeof props[name] === 'function') {
+      ref = props[name];
+    }
     if (name === 'style') {
       applyStyle(el, props[name]);
     } else {
-      el[name] = props[name];
+      // Attributes
+      if (
+        name === 'for'
+        || name === 'type'
+        || name === 'selected'
+        || name === 'checked'
+      ) {
+        if (props[name]) {
+          el.setAttribute(name, props[name]);
+        } else {
+          // Attributes must be removed, not just set to false.
+          el.removeAttribute(name);
+        }
+      } else {
+        // An actual prop.
+        el[name] = props[name];
+      }
     }
   });
   children.forEach(child => {
@@ -22,6 +43,8 @@ var o_o = (name, props={}, children=[]) => {
       el.appendChild(t);
     }
   })
+  // Only call the ref callback once the children are there.
+  if (ref) ref(el);
   return el;
 }
 
@@ -60,7 +83,6 @@ var Boot = () => {
       video,
       startTime,
       endTime: endTime || video.duration,
-      switchTransition: null
     }))
   );
 
@@ -74,9 +96,12 @@ class App {
     this.state = {
       clips,
       scheduled: null,
-      controls: {
-      },
+      controls: {},
       root: null,
+      options: {
+        random2sec: false,
+        sound: false,
+      }
     }
   }
 
@@ -114,8 +139,61 @@ class App {
     ]);
 
     this.state.root.appendChild(clipsDiv);
+
+    var controlsDiv = o_o('div', {
+      className: 'controls',
+      style: {
+        position: 'absolute',
+        left: '20px',
+        top: '20px',
+        padding: '10px',
+        opacity: '0.7',
+        zIndex: this.state.clips.length + 1,
+        backgroundColor: 'black',
+        color: 'white',
+        fontFamily: 'Helvetica, Arial, sans-serif'
+      }
+    }, [
+      o_o('button', {
+        className: 'play-btn',
+        ref: el => { this.state.controls.playBtn = el },
+        onclick: () => this.togglePlay(),
+        style: {
+          width: '75px',
+        }
+      }),
+      o_o('label', {
+        className: 'random-2-sec',
+      }, [
+        o_o('input', {
+          type: 'checkbox',
+          onchange: ({ target: { value } }) => {
+            this.state.options.random2sec = value === 'on';
+            this.scheduleNext();
+          },
+        }),
+        'RANDOM 2 SECONDS'
+      ]),
+      o_o('label', {
+        className: 'sound',
+      }, [
+        o_o('input', {
+          type: 'checkbox',
+          checked: this.state.options.sound,
+          onchange: ({ target: { value } }) => {
+            this.state.options.sound = value === 'on';
+            this.toggleSound();
+          },
+        }),
+        'SOUND'
+      ])
+    ]);
+
+    this.state.root.appendChild(controlsDiv);
+
     var active = this.chooseNext();
     this.bringToFront(active);
+    this.toggleSound();
     this.play();
   }
 
@@ -139,12 +217,26 @@ class App {
 
   scheduleNext () {
     if (this.state.scheduled) clearInterval(this.state.scheduled);
+    var { options } = this.state;
     var curr = this.getActive();
     var endTime = Math.max(curr.endTime - curr.video.currentTime, 0);
+    if (options.random2sec) {
+      console.log('original', endTime);
+      endTime = Math.min(2, curr.video.duration - curr.video.currentTime);
+      console.log('FULL RANDOM', endTime);
+    }
     console.log('schedule end at', endTime, curr)
     this.state.scheduled = setTimeout(() => {
       this.state.scheduled = null;
-      curr.video.currentTime = curr.startTime;
+      var startTime = curr.startTime;
+      if (options.random2sec) {
+        curr.video.currentTime = Math.max(curr.startTime
+          + (curr.video.duration - curr.startTime) * Math.random(), 2);
+        console.log('random start time will be', curr.video.currentTime);
+      } else {
+        curr.video.startTime = curr.startTime;
+      }
+      curr.video.pause();
       var next = this.chooseNext();
       next.video.play();
       this.bringToFront(next);
@@ -155,12 +247,12 @@ class App {
 
   pause () {
     if (this.state.scheduled) clearTimeout(this.state.scheduled);
-    //this.state.controls.playBtn.textContent = 'PLAY';
+    this.state.controls.playBtn.textContent = 'PLAY';
     return this.getActive().video.pause();
   }
 
   play () {
-    //this.state.controls.playBtn.textContent = 'PAUSE';
+    this.state.controls.playBtn.textContent = 'PAUSE';
     this.scheduleNext();
     return this.getActive().video.play();
   }
@@ -174,6 +266,13 @@ class App {
     }
   }
 
+  toggleSound () {
+    var { sound } = this.state.options;
+    var { clips } = this.state;
+    clips.forEach(({ video }) => {
+      video.volume = sound ? 1 : 0;
+    });
+  }
 }
 
 Boot().then(clips => {
