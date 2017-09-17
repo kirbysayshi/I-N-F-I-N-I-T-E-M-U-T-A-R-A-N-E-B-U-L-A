@@ -104,7 +104,8 @@ class App {
       clips,
       scheduled: null,
       controls: {},
-      controlsOpen: false,
+      controlsFade: null,
+      controlsFadeDelay: 1000,
       root: null,
       options: {
         random2sec: false,
@@ -152,12 +153,13 @@ class App {
 
     var controlsDiv = o_o('div', {
       className: 'controls',
+      ref: (el) => { this.state.controls.panel = el; },
       style: {
         position: 'absolute',
         left: '20px',
         top: '20px',
         padding: '10px',
-        opacity: '0.4',
+        transition: 'opacity 1s ease-out 0s',
         zIndex: this.state.clips.length + 1,
         backgroundColor: 'black',
         color: 'white',
@@ -165,65 +167,54 @@ class App {
       }
     }, [
       o_o('button', {
-        style: { font },
-        onclick: () => {
-          this.state.controlsOpen = !this.state.controlsOpen;
-          this.toggleControls()
-        },
-      }, ['CONTROLS']),
-      o_o('div', {
-        className: 'controls-collapser',
-        ref: (el) => { this.state.controls.collapser = el; }
+        className: 'play-btn',
+        ref: el => { this.state.controls.playBtn = el },
+        onclick: () => this.togglePlay(),
+        style: {
+          font,
+          width: '75px',
+        }
+      }),
+      o_o('label', {
+        className: 'random-2-sec',
+        style: { display: 'block', }
       }, [
-        o_o('hr'),
-        o_o('button', {
-          className: 'play-btn',
-          ref: el => { this.state.controls.playBtn = el },
-          onclick: () => this.togglePlay(),
-          style: {
-            font,
-            width: '75px',
-          }
+        o_o('input', {
+          type: 'checkbox',
+          onchange: ({ target: { checked } }) => {
+            this.state.options.random2sec = !!checked;
+            this.scheduleNext();
+          },
         }),
-        o_o('label', {
-          className: 'random-2-sec',
-          style: { display: 'block', }
-        }, [
-          o_o('input', {
-            type: 'checkbox',
-            onchange: ({ target: { checked } }) => {
-              this.state.options.random2sec = !!checked;
-              this.scheduleNext();
-            },
-          }),
-          'RANDOM 2 SECONDS'
-        ]),
-        o_o('label', {
-          className: 'sound',
-          style: { display: 'block', }
-        }, [
-          o_o('input', {
-            type: 'checkbox',
-            checked: this.state.options.sound,
-            onchange: ({ target: { checked } }) => {
-              this.state.options.sound = !!checked;
-              this.toggleSound();
-            },
-          }),
-          'SOUND'
-        ]),
-        o_o('p', {}, [
-          `TODO: copyright / fair use`
-        ])
+        'RANDOM 2 SECONDS'
       ]),
+      o_o('label', {
+        className: 'sound',
+        style: { display: 'block', }
+      }, [
+        o_o('input', {
+          type: 'checkbox',
+          checked: this.state.options.sound,
+          onchange: ({ target: { checked } }) => {
+            this.state.options.sound = !!checked;
+            this.toggleSound();
+          },
+        }),
+        'SOUND'
+      ]),
+      o_o('p', {}, [
+        `TODO: copyright / fair use`
+      ])
     ]);
+
+    this.state.root.onmousemove = () => this.showControls();
 
     this.state.root.appendChild(controlsDiv);
 
     var active = this.chooseNext();
     this.bringToFront(active);
     this.toggleSound();
-    this.toggleControls();
+    this.showControls();
     this.play();
   }
 
@@ -265,7 +256,7 @@ class App {
           + (curr.video.duration - curr.startTime) * Math.random(), 2);
         dbg('random2sec: seek %fs', curr.video.currentTime);
       } else {
-        curr.video.startTime = curr.startTime;
+        curr.video.currentTime = curr.startTime;
       }
       curr.video.pause();
       var next = this.chooseNext();
@@ -304,11 +295,15 @@ class App {
     });
   }
 
-  toggleControls () {
-    var { controlsOpen, controls: { collapser: cc } } = this.state;
-    cc.style.display = controlsOpen
-      ? 'block'
-      : 'none'
+  showControls () {
+    var { panel } = this.state.controls;
+    if (this.state.controlsFade) clearTimeout(this.state.controlsFade);
+    panel.style.opacity = '1';
+    this.state.controlsFade = setTimeout(() => {
+      var { panel } = this.state.controls;
+      panel.style.opacity = '0';
+      this.state.controlsFade = null;
+    }, this.state.controlsFadeDelay);
   }
 }
 
