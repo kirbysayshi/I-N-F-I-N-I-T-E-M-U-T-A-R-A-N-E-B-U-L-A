@@ -166,15 +166,31 @@ class App {
         font,
       }
     }, [
-      o_o('button', {
-        className: 'play-btn',
-        ref: el => { this.state.controls.playBtn = el },
-        onclick: () => this.togglePlay(),
+      o_o('div', {
+        className: 'btn-wrap',
         style: {
-          font,
-          width: '75px',
+          position: 'relative',
+          width: '50px',
+          height: '50px',
         }
-      }),
+      }, [
+        o_o('button', {
+          className: 'play-btn',
+          ref: el => { this.state.controls.playBtn = el },
+          onclick: () => this.togglePlay(),
+          style: {
+            font,
+            textAlign: 'center',
+            color: '#333333',
+            padding: '0',
+            margin: '0',
+            width: '100%',
+            height: '100%',
+            border: '2px solid #333333',
+            borderRadius: '100% 100% 100% 100%',
+          }
+        }),
+      ]),
       o_o('label', {
         className: 'random-2-sec',
         style: { display: 'block', }
@@ -185,8 +201,15 @@ class App {
             this.state.options.random2sec = !!checked;
             this.scheduleNext();
           },
+          style: {
+            verticalAlign: 'middle',
+          }
         }),
-        'RANDOM 2 SECONDS'
+        o_o('span', {
+          style: {
+            verticalAlign: 'middle',
+          }
+        }, ['RANDOM 2 SECONDS']),
       ]),
       o_o('label', {
         className: 'sound',
@@ -199,8 +222,15 @@ class App {
             this.state.options.sound = !!checked;
             this.toggleSound();
           },
+          style: {
+            verticalAlign: 'middle',
+          },
         }),
-        'SOUND'
+        o_o('span', {
+          style: {
+            verticalAlign: 'middle',
+          }
+        }, ['SOUND']),
       ]),
       o_o('p', {}, [
         `TODO: copyright / fair use`
@@ -268,12 +298,12 @@ class App {
 
   pause () {
     if (this.state.scheduled) clearTimeout(this.state.scheduled);
-    this.state.controls.playBtn.textContent = 'PLAY';
+    this.state.controls.playBtn.innerHTML = '&#9654;';
     return this.getActive().video.pause();
   }
 
   play () {
-    this.state.controls.playBtn.textContent = 'PAUSE';
+    this.state.controls.playBtn.innerHTML = '&#9646;&#9646;';
     this.scheduleNext();
     return this.getActive().video.play();
   }
