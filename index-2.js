@@ -97,6 +97,25 @@ var Boot = () => {
 
 var dbg = debug('mutara');
 
+function CheckboxEl (label, onchange) {
+  return o_o('label', {
+    style: { display: 'block', }
+  }, [
+    o_o('input', {
+      type: 'checkbox',
+      onchange,
+      style: {
+        verticalAlign: 'middle',
+      }
+    }),
+    o_o('span', {
+      style: {
+        verticalAlign: 'middle',
+      }
+    }, [label]),
+  ])
+}
+
 class App {
 
   constructor (clips) {
@@ -126,7 +145,6 @@ class App {
     });
 
     var clipsDiv = o_o('div', {
-      className: 'clips', // just for debugging
       style: {
         position: 'absolute',
         left: '0px',
@@ -191,49 +209,16 @@ class App {
           }
         }),
       ]),
-      o_o('label', {
-        className: 'random-2-sec',
-        style: { display: 'block', }
-      }, [
-        o_o('input', {
-          type: 'checkbox',
-          onchange: ({ target: { checked } }) => {
-            this.state.options.random2sec = !!checked;
-            if (!this.isPaused()) {
-              this.scheduleNext();
-            }
-          },
-          style: {
-            verticalAlign: 'middle',
-          }
-        }),
-        o_o('span', {
-          style: {
-            verticalAlign: 'middle',
-          }
-        }, ['RANDOM 2 SECONDS']),
-      ]),
-      o_o('label', {
-        className: 'sound',
-        style: { display: 'block', }
-      }, [
-        o_o('input', {
-          type: 'checkbox',
-          checked: this.state.options.sound,
-          onchange: ({ target: { checked } }) => {
-            this.state.options.sound = !!checked;
-            this.toggleSound();
-          },
-          style: {
-            verticalAlign: 'middle',
-          },
-        }),
-        o_o('span', {
-          style: {
-            verticalAlign: 'middle',
-          }
-        }, ['SOUND']),
-      ]),
+      CheckboxEl('RANDOM 2 SECONDS', ({ target: { checked } }) => {
+        this.state.options.random2sec = !!checked;
+        if (!this.isPaused()) {
+          this.scheduleNext();
+        }
+      }),
+      CheckboxEl('SOUND', ({ target: { checked } }) => {
+        this.state.options.sound = !!checked;
+        this.toggleSound();
+      }),
       o_o('p', {}, [
         `TODO: copyright / fair use`
       ])
