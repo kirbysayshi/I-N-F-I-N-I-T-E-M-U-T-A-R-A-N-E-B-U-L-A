@@ -1,6 +1,6 @@
 var debug = (prefix) => localStorage[prefix]
   ? (fmt, ...params) => {
-    console.log(prefix + ': ' + fmt, ...params);
+    console.log(Date.now() + ' ' + prefix + ': ' + fmt, ...params);
   }
   : () => {};
 
@@ -116,12 +116,72 @@ function CheckboxEl (label, onchange) {
   ])
 }
 
+class Scheduler {
+
+  constructor (onEmpty) {
+    this.onEmpty = onEmpty;
+    this.processPoll = 100;
+    this.queue = [];
+    this.scheduled = null;
+    this.runningTime = 0;
+    this.lastTime = 0;
+  }
+
+  _process () {
+
+    if (!this.queue.length) {
+      dbg('queue is empty')
+      this.onEmpty((cb, duration) => {
+        this.queueEvent({ cb, duration });
+      });
+
+      this.runningTime = 0;
+      this._process();
+    } else {
+      const [item] = this.queue;
+
+      if (this.runningTime === 0) {
+        dbg('start of item lifetime')
+        item.cb();
+      }
+
+      this.runningTime += Date.now() - this.lastTime;
+
+      if (this.runningTime >= item.duration - this.processPoll) {
+        dbg('item has expired. runningTime %d, duration %d', this.runningTime, item.duration);
+        this.skip();
+      }
+    }
+
+    this.start();
+  }
+
+  skip () {
+    dbg('skipping current queue item');
+    this.queue.shift();
+    this.runningTime = 0;
+  }
+
+  queueEvent (ev) {
+    this.queue.push(ev);
+  }
+
+  start () {
+    clearTimeout(this.scheduled);
+    this.lastTime = Date.now();
+    this.scheduled = setTimeout(() => this._process(), this.processPoll);
+  }
+
+  pause () {
+    clearTimeout(this.scheduled);
+  }
+}
+
 class App {
 
   constructor (clips) {
     this.state = {
       clips,
-      scheduled: null,
       controls: {},
       controlsFade: null,
       controlsFadeDelay: 1000,
@@ -129,7 +189,8 @@ class App {
       options: {
         random2sec: false,
         sound: false,
-      }
+      },
+      scheduler: null,
     }
   }
 
@@ -212,9 +273,7 @@ class App {
       ]),
       CheckboxEl('RANDOM 2 SECONDS', ({ target: { checked } }) => {
         this.state.options.random2sec = !!checked;
-        if (!this.isPaused()) {
-          this.scheduleNext();
-        }
+        this.state.scheduler.skip();
       }),
       CheckboxEl('SOUND', ({ target: { checked } }) => {
         this.state.options.sound = !!checked;
@@ -230,8 +289,25 @@ class App {
 
     this.state.root.appendChild(controlsDiv);
 
-    var active = this.chooseNext();
-    this.bringToFront(active);
+    this.state.scheduler = new Scheduler((queue) => {
+      var next = this.chooseNext();
+      var plot = this.plotClipTime(next, this.state.options);
+      queue(() => {
+        // Without this event we get visual delays.
+        var onseeked = (e) => {
+          next.video.onseeked = null;
+          var curr = this.getActive();
+          curr.video.pause();
+          next.video.play();
+          this.bringToFront(next);
+        };
+        next.video.onseeked = onseeked;
+        next.video.currentTime = plot.startTime;
+      }, plot.duration * 1000)
+    });
+
+    this.state.scheduler.start();
+
     this.toggleSound();
     this.showControls();
     this.play();
@@ -239,7 +315,15 @@ class App {
 
   chooseNext () {
     var { clips } = this.state;
-    return clips[Math.floor(Math.random() * clips.length)];
+    var active = this.getActive();
+
+    var next = active;
+
+    while (next === active) {
+      next = clips[Math.floor(Math.random() * clips.length)];
+    }
+
+    return next;
   }
 
   bringToFront (clip) {
@@ -255,45 +339,39 @@ class App {
     return clips.sort((a, b) => b.video.style.zIndex - a.video.style.zIndex)[0];
   }
 
-  scheduleNext () {
-    if (this.state.scheduled) clearInterval(this.state.scheduled);
-    var { options } = this.state;
-    var curr = this.getActive();
-    var endTime = Math.max(curr.endTime - curr.video.currentTime, 0);
+  plotClipTime (clip, options) {
+    var {
+      endTime,
+      startTime,
+      video: { currentTime, duration }
+    } = clip;
+
+    var plot = {
+      startTime: startTime,
+      endTime: endTime,
+      duration: 0,
+    };
+
     if (options.random2sec) {
-      var orig = endTime;
-      endTime = Math.min(2, curr.video.duration - curr.video.currentTime);
-      dbg('random2sec: endTime orig %fs new %fs', orig, endTime);
+      plot.startTime = (endTime - startTime - 2) * Math.random();
+      plot.endTime = plot.startTime + 2;
     }
-    dbg('schedule will fire: %fs', endTime);
-    this.state.scheduled = setTimeout(() => {
-      dbg('schedule fired after %fs', endTime);
-      this.state.scheduled = null;
-      var startTime = curr.startTime;
-      if (options.random2sec) {
-        curr.video.currentTime = Math.max(curr.startTime
-          + (curr.video.duration - curr.startTime) * Math.random(), 2);
-        dbg('random2sec: seek %fs', curr.video.currentTime);
-      } else {
-        curr.video.currentTime = curr.startTime;
-      }
-      curr.video.pause();
-      var next = this.chooseNext();
-      next.video.play();
-      this.bringToFront(next);
-      this.scheduleNext();
-    }, endTime * 1000);
+
+    plot.duration = plot.endTime - plot.startTime;
+
+    dbg('plot %o for clip %o', plot, clip);
+    return plot;
   }
 
   pause () {
-    if (this.state.scheduled) clearTimeout(this.state.scheduled);
     this.state.controls.playBtn.innerHTML = '&#9654;';
+    this.state.scheduler.pause();
     return this.getActive().video.pause();
   }
 
   play () {
     this.state.controls.playBtn.innerHTML = '&#9646;&#9646;';
-    this.scheduleNext();
+    this.state.scheduler.start();
     return this.getActive().video.play();
   }
 
