@@ -199,7 +199,9 @@ class App {
           type: 'checkbox',
           onchange: ({ target: { checked } }) => {
             this.state.options.random2sec = !!checked;
-            this.scheduleNext();
+            if (!this.isPaused()) {
+              this.scheduleNext();
+            }
           },
           style: {
             verticalAlign: 'middle',
@@ -308,9 +310,14 @@ class App {
     return this.getActive().video.play();
   }
 
-  togglePlay () {
+  isPaused () {
     var { video } = this.getActive();
-    if (video.paused) {
+    if (video.paused) { return true }
+    else { return false }
+  }
+
+  togglePlay () {
+    if (this.isPaused()) {
       this.play();
     } else {
       this.pause();
