@@ -179,7 +179,7 @@ class App {
         padding: '10px',
         transition: 'opacity 1s ease-out 0s',
         zIndex: this.state.clips.length + 1,
-        backgroundColor: 'black',
+        backgroundColor: '#333333',
         color: 'white',
         font,
       }
@@ -190,6 +190,7 @@ class App {
           position: 'relative',
           width: '50px',
           height: '50px',
+          margin: 'auto',
         }
       }, [
         o_o('button', {
@@ -225,6 +226,7 @@ class App {
     ]);
 
     this.state.root.onmousemove = () => this.showControls();
+    this.state.root.onclick = () => this.showControls();
 
     this.state.root.appendChild(controlsDiv);
 
