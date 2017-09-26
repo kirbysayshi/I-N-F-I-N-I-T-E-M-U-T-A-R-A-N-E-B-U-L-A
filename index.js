@@ -97,13 +97,14 @@ var Boot = () => {
 
 var dbg = debug('mutara');
 
-function CheckboxEl (label, onchange) {
+function CheckboxEl (label, onchange, onRef=()=>{}) {
   return o_o('label', {
     style: { display: 'block', }
   }, [
     o_o('input', {
       type: 'checkbox',
       onchange,
+      ref: onRef,
       style: {
         verticalAlign: 'middle',
       }
@@ -188,6 +189,7 @@ class App {
       root: null,
       options: {
         random2sec: false,
+        sequential: false,
         sound: false,
       },
       scheduler: null,
@@ -214,7 +216,7 @@ class App {
         height: '100%',
       },
     }, [
-      ...this.state.clips.map(clip => {
+      ...this.state.clips.map((clip, idx, clips) => {
         return applyStyle(clip.video, {
           position: 'absolute',
           top: '-999999px',
@@ -224,6 +226,7 @@ class App {
           minHeight: '100%',
           minWidth: '100%',
           margin: 'auto',
+          zIndex: clips.length - idx,
         })
       })
     ]);
@@ -277,6 +280,12 @@ class App {
           paddingTop: '10px',
         }
       }, [
+        CheckboxEl('SEQUENTIAL', ({ target: { checked } }) => {
+          this.state.options.sequential = !!checked;
+        }, (el) => {
+          this.state.options.sequential = true;
+          el.setAttribute('checked', 'checked');
+        }),
         CheckboxEl('RANDOM 2 SECONDS', ({ target: { checked } }) => {
           this.state.options.random2sec = !!checked;
           this.state.scheduler.skip();
@@ -297,8 +306,11 @@ class App {
 
     this.state.root.appendChild(controlsDiv);
 
+    var firstTime = true;
+
     this.state.scheduler = new Scheduler((queue) => {
-      var next = this.chooseNext();
+      var next = firstTime ? this.getActive() : this.chooseNext();
+      firstTime = false;
       var plot = this.plotClipTime(next, this.state.options);
       queue(() => {
         // Without this event we get visual delays.
@@ -322,13 +334,18 @@ class App {
   }
 
   chooseNext () {
-    var { clips } = this.state;
+    var { clips, options } = this.state;
     var active = this.getActive();
 
     var next = active;
 
-    while (next === active) {
-      next = clips[Math.floor(Math.random() * clips.length)];
+    if (options.sequential) {
+      var index = clips.indexOf(active);
+      next = clips[(index + 1) % clips.length];
+    } else {
+      while (next === active) {
+        next = clips[Math.floor(Math.random() * clips.length)];
+      }
     }
 
     return next;
@@ -344,7 +361,9 @@ class App {
 
   getActive () {
     var { clips } = this.state;
-    return clips.sort((a, b) => b.video.style.zIndex - a.video.style.zIndex)[0];
+    return clips.slice().sort((a, b) =>
+      parseInt(b.video.style.zIndex, 10) - parseInt(a.video.style.zIndex, 10)
+    )[0];
   }
 
   plotClipTime (clip, options) {
