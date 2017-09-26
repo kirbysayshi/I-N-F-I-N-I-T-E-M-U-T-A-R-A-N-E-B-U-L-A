@@ -271,14 +271,22 @@ class App {
           }
         }),
       ]),
-      CheckboxEl('RANDOM 2 SECONDS', ({ target: { checked } }) => {
-        this.state.options.random2sec = !!checked;
-        this.state.scheduler.skip();
-      }),
-      CheckboxEl('SOUND', ({ target: { checked } }) => {
-        this.state.options.sound = !!checked;
-        this.toggleSound();
-      }),
+
+      o_o('div', {
+        style: {
+          paddingTop: '10px',
+        }
+      }, [
+        CheckboxEl('RANDOM 2 SECONDS', ({ target: { checked } }) => {
+          this.state.options.random2sec = !!checked;
+          this.state.scheduler.skip();
+        }),
+        CheckboxEl('SOUND', ({ target: { checked } }) => {
+          this.state.options.sound = !!checked;
+          this.toggleSound();
+        }),
+      ]),
+
       o_o('p', {}, [
         `TODO: copyright / fair use`
       ])
@@ -353,8 +361,9 @@ class App {
     };
 
     if (options.random2sec) {
-      plot.startTime = (endTime - startTime - 2) * Math.random();
-      plot.endTime = plot.startTime + 2;
+      var min = 2;
+      plot.startTime = (endTime - startTime - min) * Math.random();
+      plot.endTime = plot.startTime + min;
     }
 
     plot.duration = plot.endTime - plot.startTime;
