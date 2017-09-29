@@ -282,13 +282,13 @@ class App {
       }, [
         CheckboxEl('SEQUENTIAL', ({ target: { checked } }) => {
           this.state.options.sequential = !!checked;
-        }, (el) => {
-          this.state.options.sequential = true;
-          el.setAttribute('checked', 'checked');
         }),
         CheckboxEl('RANDOM 2 SECONDS', ({ target: { checked } }) => {
           this.state.options.random2sec = !!checked;
           this.state.scheduler.skip();
+        }, (el) => {
+          this.state.options.random2sec = true;
+          el.setAttribute('checked', 'checked');
         }),
         CheckboxEl('SOUND', ({ target: { checked } }) => {
           this.state.options.sound = !!checked;
