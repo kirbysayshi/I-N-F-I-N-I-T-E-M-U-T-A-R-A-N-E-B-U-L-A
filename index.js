@@ -296,9 +296,6 @@ class App {
         }),
       ]),
 
-      o_o('p', {}, [
-        `TODO: copyright / fair use`
-      ])
     ]);
 
     this.state.root.onmousemove = () => this.showControls();
