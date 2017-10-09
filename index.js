@@ -119,62 +119,59 @@ function CheckboxEl (label, onchange, onRef=()=>{}) {
 
 class Scheduler {
 
-  constructor (onEmpty) {
+  constructor (onEmpty=()=>{}) {
     this.onEmpty = onEmpty;
     this.processPoll = 100;
     this.queue = [];
     this.scheduled = null;
-    this.runningTime = 0;
+    this.currentTime = 0;
     this.lastTime = 0;
-  }
-
-  _process () {
-
-    if (!this.queue.length) {
-      dbg('queue is empty')
-      this.onEmpty((cb, duration) => {
-        this.queueEvent({ cb, duration });
-      });
-
-      this.runningTime = 0;
-      this._process();
-    } else {
-      const [item] = this.queue;
-
-      if (this.runningTime === 0) {
-        dbg('start of item lifetime')
-        item.cb();
-      }
-
-      this.runningTime += Date.now() - this.lastTime;
-
-      if (this.runningTime >= item.duration - this.processPoll) {
-        dbg('item has expired. runningTime %d, duration %d', this.runningTime, item.duration);
-        this.skip();
-      }
-    }
-
-    this.start();
   }
 
   skip () {
     dbg('skipping current queue item');
     this.queue.shift();
-    this.runningTime = 0;
   }
 
-  queueEvent (ev) {
-    this.queue.push(ev);
+  queueEvent (cb, when) {
+    this.queue.push({ cb, when });
   }
 
   start () {
-    clearTimeout(this.scheduled);
+    clearInterval(this.scheduled);
+    this.currentTime = 0;
     this.lastTime = Date.now();
-    this.scheduled = setTimeout(() => this._process(), this.processPoll);
+    this.scheduled = setInterval(() => this._process(), this.processPoll);
   }
 
   pause () {
-    clearTimeout(this.scheduled);
+    clearInterval(this.scheduled);
+  }
+
+  _process () {
+
+    let now = Date.now();
+    let accum = now - this.lastTime;
+    this.currentTime += accum;
+    let forwardLimit = this.currentTime + this.processPoll;
+
+    let i = 0;
+    while (i < this.queue.length) {
+      let { cb, when } = this.queue[i];
+      if (when < forwardLimit) {
+        this.queue.shift();
+        cb(when - this.currentTime);
+        // do not increment i because we mutated the queue
+      } else {
+        i++
+      }
+    }
+
+    if (this.queue.length === 0) {
+      this.onEmpty((...args) => this.queueEvent(...args));
+    }
+
+    this.lastTime = now;
   }
 }
 
@@ -303,25 +300,44 @@ class App {
 
     this.state.root.appendChild(controlsDiv);
 
-    var firstTime = true;
+    this.state.scheduler = new Scheduler();
+    const { scheduler } = this.state;
 
-    this.state.scheduler = new Scheduler((queue) => {
-      var next = firstTime ? this.getActive() : this.chooseNext();
-      firstTime = false;
-      var plot = this.plotClipTime(next, this.state.options);
-      queue(() => {
-        // Without this event we get visual delays.
-        var onseeked = (e) => {
-          next.video.onseeked = null;
-          var curr = this.getActive();
-          curr.video.pause();
-          next.video.play();
+    let curr = this.getActive();
+    let plot = this.plotClipTime(curr, this.state.options);
+    dbg('seeking curr')
+    curr.video.currentTime = plot.startTime;
+    curr.video.play();
+    this.bringToFront(curr);
+    const seekTime = 1000;
+
+    const nextEvent = (amtEarly) => {
+      dbg('choosing next');
+      let next = this.chooseNext();
+      let nextPlot = this.plotClipTime(next, this.state.options);
+      next.video.currentTime = nextPlot.startTime;
+
+      scheduler.queueEvent((amtEarly) => {
+        dbg('playing next');
+        let curr = this.getActive();
+
+        next.video.onplay = () => {
+          dbg('onplay');
+        }
+
+        next.video.onplaying = () => {
+          dbg('onplaying');
           this.bringToFront(next);
-        };
-        next.video.onseeked = onseeked;
-        next.video.currentTime = plot.startTime;
-      }, plot.duration * 1000)
-    });
+          curr.video.pause();
+        }
+        next.video.play();
+
+        let nextSeekTime = scheduler.currentTime + (plot.durationMs - seekTime);
+        scheduler.queueEvent(nextEvent, nextSeekTime);
+      }, scheduler.currentTime + seekTime + amtEarly);
+    }
+
+    this.state.scheduler.queueEvent(nextEvent, plot.durationMs - seekTime);
 
     this.state.scheduler.start();
 
@@ -374,6 +390,7 @@ class App {
       startTime: startTime,
       endTime: endTime,
       duration: 0,
+      durationMs: 0,
     };
 
     if (options.random2sec) {
@@ -383,8 +400,9 @@ class App {
     }
 
     plot.duration = plot.endTime - plot.startTime;
+    plot.durationMs = plot.duration * 1000;
 
-    dbg('plot %o for clip %o', plot, clip);
+    //dbg('plot %o for clip %o', plot, clip);
     return plot;
   }
 
