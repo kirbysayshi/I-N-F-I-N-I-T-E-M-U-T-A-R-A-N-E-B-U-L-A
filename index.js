@@ -65,6 +65,7 @@ var Boot = () => {
       var v = document.createElement('video');
       var onloaded = () => {
         v.removeEventListener('loadedmetadata', onloaded);
+        v.volume = 0;
         resolve(v);
       }
       v.addEventListener('loadedmetadata', onloaded);
@@ -82,7 +83,10 @@ var Boot = () => {
     ["clips/clip-7.mp4", 0, 0],
     ["clips/clip-8.mp4", 0, 0],
   ].map(([url, startTime, endTime]) => fetch(url)
-    .then(res => res.arrayBuffer())
+    .then(res => {
+      if (!res.ok) throw new Error('NOT OK! ' + res.statusText);
+      return res.arrayBuffer();
+    })
     .then(buf => urlFromBuffer(buf))
     .then(url => videoFromUrl(url))
     .then(video => ({
@@ -94,6 +98,12 @@ var Boot = () => {
 
   return Promise.all(clips);
 };
+
+window.addEventListener('unhandledrejection', event => {
+  console.log('unhandled', event)
+  alert('unhandled ' + event.reason);
+});
+
 
 var dbg = debug('mutara');
 
@@ -307,7 +317,6 @@ class App {
     let plot = this.plotClipTime(curr, this.state.options);
     dbg('seeking curr')
     curr.video.currentTime = plot.startTime;
-    curr.video.play();
     this.bringToFront(curr);
     const seekTime = 1000;
 
@@ -338,8 +347,6 @@ class App {
     }
 
     this.state.scheduler.queueEvent(nextEvent, plot.durationMs - seekTime);
-
-    this.state.scheduler.start();
 
     this.toggleSound();
     this.showControls();
@@ -455,5 +462,8 @@ class App {
 Boot().then(clips => {
   var app = new App(clips);
   app.mount(document.querySelector('#stage'));
+}).catch(err => {
+  console.log('err?', err);
+  alert('boot error ' + err.message)
 });
 
